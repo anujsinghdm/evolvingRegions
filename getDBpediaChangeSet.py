@@ -13,7 +13,7 @@ url = 'http://live.dbpedia.org/changesets/2019/03/'
 for i, dayAnchor in enumerate(getAllAnchors(url)):
     if not i == 0:
         dayUrl = url + dayAnchor.get('href')
-
+        day = dayUrl.replace(url, '')
         #making hour URL
         for j, hrAnchor in enumerate(getAllAnchors(dayUrl)):
             if not j == 0:
@@ -24,7 +24,10 @@ for i, dayAnchor in enumerate(getAllAnchors(url)):
                     fileName = fileAnchor.get('href')
                     if not k == 0  and 'clear' not in fileName and 'reinserted' not in fileName:
                         fileUrl = hrUrl + fileName
-                        downloadedFilePath = '../DBpediaChangeSet/' + fileUrl.replace(url,'').replace('/','_').replace('.','_',1)
+                        fileName = fileName.replace('.','_',1)
+                        downloadedFilePath = '../../DBpediaChangeSet/' + day + hrAnchor.get('href') + fileName
+                        if not os.path.exists(downloadedFilePath.replace(fileName,'')):
+                            os.makedirs(downloadedFilePath.replace(fileName,''))
                         urllib.urlretrieve (fileUrl, downloadedFilePath)
                         with gzip.open(downloadedFilePath, 'rb') as f_in:
                             extractedFilePath = downloadedFilePath.replace('.gz','')
