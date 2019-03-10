@@ -1,10 +1,10 @@
 import glob, os
 import pprint
+import time
 from rdflib import Graph
 from SPARQLWrapper import SPARQLWrapper, JSON
 
 path = '../../DBpediaChangeSet'
-sparqlEndpoint = SPARQLWrapper("http://live.dbpedia.org/sparql")
 
 def getAllFilePaths(dirPath):
     allFilePath = []
@@ -16,24 +16,26 @@ def getAllFilePaths(dirPath):
     return allFilePath
 
 filePath =  getAllFilePaths(path)[1]
+print filePath
 file = Graph()
 file.parse(filePath, format="nt")
+index = 1
+sparqlEndpoint = SPARQLWrapper("http://live.dbpedia.org/sparql")
 for s,p,o in file:
+
+    print '#########' + str(s) + '#########'
+    time.sleep(.5)
     query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-    SELECT ?type
+    SELECT ?extractedType
     WHERE {
-    <""" + str(s) + """> rdf:type ?type } """
+    OPTIONAL {<""" + str(s) + """> rdf:type ?type.}
+    OPTIONAL{ <""" + str(s) + """> <http://dbpedia.org/ontology/wikiPageRedirects> ?redirected.
+    ?redirected rdf:type ?type1.}
+    BIND(IF(BOUND(?type), ?type, ?type1) AS ?rdfType)
+    BIND(IF(BOUND(?rdfType), ?rdfType, "No Class Found") AS ?extractedType)
+    } """
     sparqlEndpoint.setQuery(query)
     sparqlEndpoint.setReturnFormat(JSON)
     results = sparqlEndpoint.query().convert()
     for result in results["results"]["bindings"]:
-        print(result["type"]["value"])
-#sparqlEndpoint.setQuery("""
-#    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-#    SELECT ?label
-#    WHERE { <http://dbpedia.org/resource/Asturias> rdfs:label ?label }
-#""")
-#sparqlEndpoint.setReturnFormat(JSON)
-#results = sparqlEndpoint.query().convert()
-
-print results
+        print(result["extractedType"]["value"])
