@@ -1,4 +1,3 @@
-
 import urllib2, urllib, gzip, shutil, os
 from bs4 import BeautifulSoup
 

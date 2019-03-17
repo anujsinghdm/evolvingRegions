@@ -5,8 +5,9 @@ from rdflib import Graph
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from rdflib.plugin import register, Serializer, Parser
 from rdflib import URIRef
+import pickle
 
-path = '../../DBpediaChangeSet'
+path = '../../DBpediaChangeSet/01/00'
 
 def getAllFilePaths(dirPath):
     allFilePath = []
@@ -17,9 +18,25 @@ def getAllFilePaths(dirPath):
                 allFilePath.append(filePath)
     return allFilePath
 
-changedClassTS = open("../../changedClasses/changedClasses.ttl","w+")
+def instatitechangedClassHourDict (filePath):
+    intialDictionary = {}
+    changedClassLog = open(hourlyChangedClass,"r")
+    for eachLine in changedClassLog:
+        intialDictionary[eachLine.split('<http://er/c>')[0].strip()] = eachLine.split('<http://er/c>')[1].replace('.','').strip()
+    return intialDictionary
+
 for filePath in getAllFilePaths(path):
+    print "############################################################"
     print filePath
+    print "############################################################"
+    hourlyChangedClass = filePath.replace('DBpediaChangeSet', 'changedClasses')
+    hourlyChangedClass = hourlyChangedClass.replace('/' + hourlyChangedClass.split('/')[len(filePath.split('/')) - 1], '.ttl')
+    changedClassHourDict = {}
+    if os.path.isfile(hourlyChangedClass):
+        changedClassHourDict = instatitechangedClassHourDict(hourlyChangedClass)
+    changedClassTS = open(hourlyChangedClass,"w+")
+    if not os.path.isfile(hourlyChangedClass):
+        changedClassHourDict.clear();
     file = Graph()
     file.parse(filePath, format="nt")
     sparqlEndpoint = SPARQLWrapper("http://live.dbpedia.org/sparql")
@@ -33,11 +50,25 @@ for filePath in getAllFilePaths(path):
         OPTIONAL{ <""" + str(s) + """> <http://dbpedia.org/ontology/wikiPageRedirects> ?redirected.
         ?redirected rdf:type ?type1.}
         BIND(COALESCE(?type1, ?type) AS ?rdfType)
-        BIND(COALESCE(?rdfType, "http://No/ClassFound") AS ?extractedType)
+        BIND(COALESCE(?rdfType, "http://www.w3.org/2002/07/owl#Thing") AS ?extractedType)
         }"""
         sparqlEndpoint.setQuery(query)
         sparqlEndpoint.setMethod(POST)
         sparqlEndpoint.setReturnFormat(JSON)
         results = sparqlEndpoint.query().convert()
         for result in results["results"]["bindings"]:
-            changedClassTS.write( "<" + result["extractedType"]["value"] + "> <http://er/c> <" + str(s) + "> . \n" )
+            key = "<" + result["extractedType"]["value"] + ">"
+            if key in changedClassHourDict:
+                changedClassHourDict[key] = changedClassHourDict[key] + 1
+            else:
+                changedClassHourDict[key] = 1
+
+    filePathMoved = filePath.replace('DBpediaChangeSet', 'DBpediaChangeSetDone')
+
+    for eachKey in changedClassHourDict.keys():
+        copyTriple = (eachKey + " <http://er/c> "+ str(changedClassHourDict[eachKey])+ " . \n" ).encode('utf-16')
+        changedClassTS.write(copyTriple)
+    changedClassTS.close()
+    # Move a file by renaming it's path
+    os.rename(filePath, filePathMoved)
+    time.sleep(1)
