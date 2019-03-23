@@ -2,7 +2,7 @@ import glob, os
 import pprint
 import time
 from rdflib import Graph
-from SPARQLWrapper import SPARQLWrapper, JSON, POST, POSTDIRECTLY, URLENCODED
+from SPARQLWrapper import SPARQLWrapper, JSON, POST, GET
 from rdflib.plugin import register, Serializer, Parser
 from rdflib import URIRef
 import pickle
@@ -12,8 +12,8 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 path = '../../DBpediaChangeSet/01/00'
-notFoundFilePath = '../../changedClasses/notFound.ttl'
-retryFilePath = '../../changedClasses/retry.ttl'
+
+
 
 def getAllFilePaths(dirPath):
     allFilePath = []
@@ -37,10 +37,15 @@ for filePath in getAllFilePaths(path):
     print ("############################################################")
     print (filePath)
     print ("############################################################")
-    notFoundIRIFile = open(notFoundFilePath,"a")
-    retryFile = open(retryFilePath,"a")
+
+
     hourlyChangedClass = filePath.replace('DBpediaChangeSet', 'changedClasses')
     hourlyChangedClass = hourlyChangedClass.replace('/' + hourlyChangedClass.split('/')[len(filePath.split('/')) - 1], '.ttl')
+    notFoundFilePath = hourlyChangedClass.replace('.ttl', 'notFound.ttl')
+    retryFilePath = hourlyChangedClass.replace('.ttl', 'retry.ttl')
+    notFoundIRIFile = open(notFoundFilePath,"a")
+    retryFile = open(retryFilePath,"a")
+
     changedClassHourDict = {}
     if os.path.isfile(hourlyChangedClass):
         changedClassHourDict = instatitechangedClassHourDict(hourlyChangedClass)
@@ -49,9 +54,9 @@ for filePath in getAllFilePaths(path):
         changedClassHourDict.clear();
     file = Graph()
     file.parse(filePath, format="nt")
-    sparqlEndpoint = SPARQLWrapper("http://live.dbpedia.org/sparql")
+    sparqlEndpoint = SPARQLWrapper("http://dbpedia-live.openlinksw.com/sparql")
     for s,p,o in file:
-        time.sleep(.4)
+        #time.sleep(.1)
         print (s)
         query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         SELECT DISTINCT ?extractedType
@@ -65,13 +70,13 @@ for filePath in getAllFilePaths(path):
         try:
             query = query.encode('UTF-8')
             sparqlEndpoint.setQuery(query)
-            sparqlEndpoint.setMethod(POST)
+            sparqlEndpoint.setMethod(GET)
             sparqlEndpoint.setReturnFormat(JSON)
             results = sparqlEndpoint.query().convert()
-        except:
-            print "retrying"
+        except Exception as e:
+            print "retrying" + str(e)
             retryFile.write('<' + str(s.encode('utf-8')) + '>\n')
-            time.sleep(.5)
+            time.sleep(1)
             continue
             #results = sparqlEndpoint.query().convert()
 
