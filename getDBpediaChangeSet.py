@@ -10,7 +10,7 @@ def getAllAnchors( parentUrl ):
 url = 'http://live.dbpedia.org/changesets/2019/03/'
 #making day URL
 for i, dayAnchor in enumerate(getAllAnchors(url)):
-    if not i == 0:
+    if not i == 0 and not i == 1 :
         dayUrl = url + dayAnchor.get('href')
         day = dayUrl.replace(url, '')
         #making hour URL
