@@ -16,5 +16,5 @@ def get_immediate_subdirectories(dirPath):
 
 path = '../../DBpediaChangeSet/01'
 if __name__ == '__main__':
-    pool = Pool(processes=4)              # start 24 worker processes
+    pool = Pool(processes=1)              # start 24 worker processes
     pool.map(getRdfTypeFromRemote.getClasses, get_immediate_subdirectories(path))
