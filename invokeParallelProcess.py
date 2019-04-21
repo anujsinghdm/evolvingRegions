@@ -2,8 +2,10 @@ from multiprocessing import Pool, TimeoutError
 import time
 import os
 import getRdfTypeFromRemote
+import recordDBpediaCurrentState
 from glob import glob
 
+#python 2.7 compatible code
 def get_immediate_subdirectories(dirPath):
     allFilePath = []
     count = 1;

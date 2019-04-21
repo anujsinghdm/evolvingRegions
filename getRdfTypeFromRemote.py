@@ -9,6 +9,7 @@ import pickle
 import sys
 import threading
 
+#python 2.7 compatible code
 reload(sys)
 sys.setdefaultencoding('utf8')
 

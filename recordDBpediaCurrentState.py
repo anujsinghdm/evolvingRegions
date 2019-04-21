@@ -1,32 +1,77 @@
 import rdflib
 from SPARQLWrapper import SPARQLWrapper, JSON, POST, GET
-DBsparqlEndPoint = SPARQLWrapper("https://dbpedia.org/sparql")
-resultCount = 10000
-counter = 1
-setOfConcepts = set()
-#while resultCount % 10000 == 0:
-queryTogetEachClass = """select distinct ?concept where {[] a ?concept} LIMIT 10000 OFFSET """ +  str(counter * 10000)
-DBsparqlEndPoint.setQuery(queryTogetEachClass)
-DBsparqlEndPoint.setMethod(GET)
-DBsparqlEndPoint.setReturnFormat(JSON)
-results = DBsparqlEndPoint.query().convert()
-resultCount = len(results["results"]["bindings"])
-counter = counter + 1
+import sys
+from multiprocessing import Pool, TimeoutError
+import glob, os
+from importlib import reload
+import datetime
 
-conceptAndInstancesTable = []
-for eachConcept in results["results"]["bindings"]:
-    setOfConcepts.add(eachConcept["concept"]["value"])
+currentStateLogFilePath = '../../DBpediaSnapshot/allConceptsWithTripleCounts.txt'
+currentStateLogFO = open(currentStateLogFilePath,"a")
 
-for eachConceptinSet in setOfConcepts:
-    queryToGetInstanceCount = """select count(?instance) as ?instanceCount
-    where { ?instance ?predicate ?object .
-            FILTER EXISTS {?instance rdf:type <""" + eachConceptinSet + """>}
-    }
-    """
-    DBsparqlEndPoint.setQuery(queryToGetInstanceCount)
+DBsparqlEndPoint = SPARQLWrapper("http://dbpedia-live.openlinksw.com/sparql")
+def instantiateAllConcepts(path):
+    allConceptsDict = []
+    allConceptsFO = open(path,"r")
+    for eachConcept in allConceptsFO:
+        allConceptsDict.append(eachConcept)
+    return allConceptsDict
+
+def getCountOfTriples(conceptURI):
+    print (conceptURI)
+    try:
+        query = """
+            select count(?subject) as ?countTriples
+            where
+            {
+            ?subject rdf:type <""" + conceptURI.strip() + """>.
+            ?subject ?predicate ?object.
+            }
+        """
+        query = query.encode('UTF-8')
+        DBsparqlEndPoint.setQuery(query)
+        DBsparqlEndPoint.setTimeout("3600")
+        DBsparqlEndPoint.setMethod(GET)
+        DBsparqlEndPoint.setReturnFormat(JSON)
+        results = DBsparqlEndPoint.query().convert()
+        currentStateLogFO.write(conceptURI.strip() + "\n")
+        currentStateFilePath = '../../DBpediaSnapshot/allConceptsWithTripleCounts/createdBy' + str(os.getpid()) + '.txt'
+        currentStateFO = open(currentStateFilePath,"a")
+        for count in results["results"]["bindings"]:
+            currentStateFO.write(conceptURI.strip() + " ----- " + str(datetime.datetime.now()) + " ----- " + str(count["countTriples"]["value"]) + "\n")
+    except Exception as e:
+        if str(e) == "HTTP Error 503: Service Temporarily Unavailable":
+            print (e)
+            getCountOfTriples(conceptURI)
+        else:
+            print (str(e))
+            currentStateLogFO.write(conceptURI.strip() + " ----- exception occured in " + str(os.getpid()) +"\n")
+
+allConceptFilePath = '../../DBpediaSnapshot/allConcepts.txt'
+if __name__ == '__main__':
+    pool = Pool(processes=50)              # start 100 worker processes
+    timingFilePath = ('../../DBpediaSnapshot/processTimings.txt')
+    timingFileFOW = open(timingFilePath, 'w+' )
+    timingFileFOW.write("Start time -- ")
+    timingFileFOW.write(str(datetime.datetime.now()))
+
+    queryTogetTotalTriplesInDBpedia = """select (count(?s) as ?count) where {?s ?p ?o}"""
+
+    queryTogetTotalTriplesInDBpedia = queryTogetTotalTriplesInDBpedia.encode('UTF-8')
+    DBsparqlEndPoint.setQuery(queryTogetTotalTriplesInDBpedia)
+    DBsparqlEndPoint.setTimeout("36000")
     DBsparqlEndPoint.setMethod(GET)
     DBsparqlEndPoint.setReturnFormat(JSON)
-    totalCount = DBsparqlEndPoint.query().convert()["results"]["bindings"][0]["instanceCount"]["value"]
-    print eachConceptinSet
-    print totalCount
-    #conceptAndInstancesTable[eachConceptinSet] =
+    results = DBsparqlEndPoint.query().convert()
+    timingFileFOW.write("\n" + str(results))
+    timingFileFOW.close()
+
+    pool.map(getCountOfTriples, instantiateAllConcepts(allConceptFilePath))
+
+    resultsAgain = DBsparqlEndPoint.query().convert()
+
+    timingFileFOA = open(timingFilePath, 'a' )
+    timingFileFOA.write("\n" + str(resultsAgain))
+    timingFileFOA.write("\nEnd time -- ")
+    timingFileFOA.write(str(datetime.datetime.now()))
+    timingFileFOA.close()

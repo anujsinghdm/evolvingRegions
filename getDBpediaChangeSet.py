@@ -6,7 +6,7 @@ def getAllAnchors( parentUrl ):
     htmlParser = BeautifulSoup(html, 'html.parser').find_all('a')
     return htmlParser
 
-
+#python 2.7 compatible code
 url = 'http://live.dbpedia.org/changesets/2019/03/'
 #making day URL
 for i, dayAnchor in enumerate(getAllAnchors(url)):
