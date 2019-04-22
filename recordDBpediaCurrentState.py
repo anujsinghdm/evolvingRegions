@@ -17,8 +17,9 @@ def instantiateAllConcepts(path):
         allConceptsDict.append(eachConcept)
     return allConceptsDict
 
+retryTable = []
 def getCountOfTriples(conceptURI):
-    print (conceptURI)
+    print (conceptURI.strip())
     try:
         query = """
             select count(?subject) as ?countTriples
@@ -40,12 +41,15 @@ def getCountOfTriples(conceptURI):
         for count in results["results"]["bindings"]:
             currentStateFO.write(conceptURI.strip() + " ----- " + str(datetime.datetime.now()) + " ----- " + str(count["countTriples"]["value"]) + "\n")
     except Exception as e:
-        if str(e) == "HTTP Error 503: Service Temporarily Unavailable":
-            print (e)
-            getCountOfTriples(conceptURI)
+        if conceptURI in retryTable:
+            if retryTable[conceptURI] < 4:
+                retryTable[conceptURI] = retryTable[conceptURI] + 1
+                getCountOfTriples(conceptURI)
         else:
-            print (str(e))
-            currentStateLogFO.write(conceptURI.strip() + " ----- exception occured in " + str(os.getpid()) +"\n")
+            retryTable[conceptURI] = 1
+            getCountOfTriples(conceptURI)
+        print (e)
+        currentStateLogFO.write(conceptURI.strip() + " ----- exception occured in " + str(os.getpid()) +"\n")
 
 allConceptFilePath = '../../DBpediaSnapshot/allConcepts.txt'
 if __name__ == '__main__':
