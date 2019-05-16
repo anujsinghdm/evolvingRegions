@@ -9,9 +9,6 @@ import pickle
 import sys
 import threading
 
-#python 2.7 compatible code
-reload(sys)
-sys.setdefaultencoding('utf8')
 
 path = '../../DBpediaChangeSet/01/00'
 lock = threading.Lock()
@@ -37,7 +34,7 @@ def instatitechangedClassHourDict (filePath):
 
 def getClasses (path):
     lock.acquire()
-    print "lock acquired on directory " + path
+    print ("lock acquired on directory " + path)
     allPreviousFilesAndCurrentFile = Graph()
     for filePath in getAllFilePaths(path):
         print ("############################################################")
@@ -46,81 +43,73 @@ def getClasses (path):
         hourlyChangedClass = filePath.replace('DBpediaChangeSet', 'changedClasses')
 
         hourlyChangedClass = hourlyChangedClass.replace('/' + hourlyChangedClass.split('/')[len(filePath.split('/')) - 1], '.ttl')
-        notFoundFilePath = hourlyChangedClass.replace('.ttl', 'notFound.ttl')
         retryFilePath = hourlyChangedClass.replace('.ttl', 'retry.ttl')
-        logFilePath = hourlyChangedClass.replace('.ttl', 'log.ttl')
-
         addedlogFilePath = hourlyChangedClass.replace('.ttl', 'added.ttl')
         deletedlogFilePath = hourlyChangedClass.replace('.ttl', 'deleted.ttl')
 
-        notFoundIRIFile = open(notFoundFilePath,"a")
         retryFile = open(retryFilePath,"a")
-        logFile = open(logFilePath,"a")
-
         changedClassHourDict = {}
+
         if os.path.isfile(hourlyChangedClass):
             changedClassHourDict = instatitechangedClassHourDict(hourlyChangedClass)
-
-        if not os.path.isfile(hourlyChangedClass):
+        else:
+            print ("Here hour dict")
             changedClassHourDict.clear();
 
         addedClassHourDict = {}
         if os.path.isfile(addedlogFilePath):
             addedClassHourDict = instatitechangedClassHourDict(addedlogFilePath)
-
-        if not os.path.isfile(addedlogFilePath):
+        else:
+            print ("Here added dict")
             addedClassHourDict.clear();
 
         deletedClassHourDict = {}
         if os.path.isfile(deletedlogFilePath):
             deletedClassHourDict = instatitechangedClassHourDict(deletedlogFilePath)
-
-        if not os.path.isfile(deletedlogFilePath):
+        else:
+            print ("Here deleted dict")
             deletedClassHourDict.clear();
 
         file = Graph()
         file.parse(filePath, format="nt")
-        sparqlEndpoint = SPARQLWrapper("http://dbpedia-live.openlinksw.com/sparql")
         for sub,pre,obj in file:
             allPreviousFilesAndCurrentFile.add((sub, pre, obj))
 
+        sparqlEndpoint = SPARQLWrapper("http://dbpedia-live.openlinksw.com/sparql")
         for s,p,o in file:
-            logFile.write(str(s) + " process ID -- " + str(os.getpid()) + "\n")
-            print s
+            print (s)
             query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             SELECT DISTINCT ?extractedType
             WHERE {
-            OPTIONAL {<""" + str(s.encode('utf-8')) + """> rdf:type ?type.}
-            OPTIONAL{ <""" + str(s.encode('utf-8')) + """> <http://dbpedia.org/ontology/wikiPageRedirects> ?redirected.
+            OPTIONAL {<""" + s.strip() + """> rdf:type ?type.}
+            OPTIONAL{ <""" + s.strip() + """> <http://dbpedia.org/ontology/wikiPageRedirects> ?redirected.
             ?redirected rdf:type ?type1.}
             BIND(COALESCE(?type1, ?type) AS ?rdfType)
-            BIND(COALESCE(?rdfType, "http://notFound") AS ?extractedType)
+            BIND(COALESCE(?rdfType, "http://exp.er.unknown") AS ?extractedType)
             }"""
 
             checkWithInCurrentAndPreviousFilesQuery = """
             SELECT DISTINCT ?type
             WHERE {
-             <""" + str(s.encode('utf-8')) + """> rdf:type ?type.
+             <""" + s.strip() + """> rdf:type ?type.
             }
             """
             resultFromCurrentAndPreviousFiles = allPreviousFilesAndCurrentFile.query(checkWithInCurrentAndPreviousFilesQuery)
 
             try:
-                query = query.encode('UTF-8')
                 sparqlEndpoint.setQuery(query)
                 sparqlEndpoint.setMethod(GET)
                 sparqlEndpoint.setReturnFormat(JSON)
                 results = sparqlEndpoint.query().convert()
             except Exception as e:
-                print "retrying" + str(e)
-                retryFile.write('<' + str(s.encode('utf-8')) + '>\n')
+                print ("retrying..." + str(e))
+                retryFile.write('<' + s.strip() + '>\n')
                 time.sleep(1)
                 continue
-                #results = sparqlEndpoint.query().convert()
-
+            #updating hour dict
             for result in results["results"]["bindings"]:
                 key = "<" + result["extractedType"]["value"] + ">"
-                if key == '''<http://notFound>''':
+                if key == '''<http://exp.er.unknown>''':
                     if len(resultFromCurrentAndPreviousFiles.bindings) == 0:
                         if key in changedClassHourDict:
                             changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + 1
@@ -128,9 +117,6 @@ def getClasses (path):
                             changedClassHourDict[key] = 1
                     else:
                         for key2 in resultFromCurrentAndPreviousFiles:
-                            print "******************************************************************"
-                            print key2
-                            print "******************************************************************"
                             if key2 in changedClassHourDict:
                                 changedClassHourDict[key2] = int(str(changedClassHourDict[key2]).strip()) + 1
                             else:
@@ -140,11 +126,11 @@ def getClasses (path):
                         changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + 1
                     else:
                         changedClassHourDict[key] = 1
-
+            #updating added dict
             if "added" in filePath:
                 for result in results["results"]["bindings"]:
                     key = "<" + result["extractedType"]["value"] + ">"
-                    if key == '''<http://notFound>''':
+                    if key == '''<http://exp.er.unknown>''':
                         if len(resultFromCurrentAndPreviousFiles.bindings) == 0:
                             if key in addedClassHourDict:
                                 addedClassHourDict[key] = int(str(addedClassHourDict[key]).strip()) + 1
@@ -162,9 +148,10 @@ def getClasses (path):
                         else:
                             addedClassHourDict[key] = 1
             else:
+                #updating deleted dict
                 for result in results["results"]["bindings"]:
                     key = "<" + result["extractedType"]["value"] + ">"
-                    if key == '''<http://notFound>''':
+                    if key == '''<http://exp.er.unknown>''':
                         if len(resultFromCurrentAndPreviousFiles.bindings) == 0:
                             if key in deletedClassHourDict:
                                 deletedClassHourDict[key] = int(str(deletedClassHourDict[key]).strip()) + 1
@@ -187,41 +174,22 @@ def getClasses (path):
         changedClassTS = open(hourlyChangedClass,"w+")
         addedClassTS = open(addedlogFilePath,"w+")
         deletedClassTS = open(deletedlogFilePath,"w+")
-        for eachKey in changedClassHourDict.keys():
-            #copyTriple = (eachKey + " <http://er/c> " ).encode('utf-8', errors='ignore')  str(changedClassHourDict[eachKey])+ )
-            changedClassTS.write((eachKey + " <http://er/c> " ).encode('utf-8', errors='ignore'))
-            changedClassTS.write(str(changedClassHourDict[eachKey]))
-            changedClassTS.write(" . \n")
+
+        for eachKeyHr in changedClassHourDict.keys():
+            changedClassTS.write((eachKeyHr + " <http://er/c> " + str(changedClassHourDict[eachKeyHr]) + " . \n"))
         changedClassTS.close()
-        print "%%%%%%%%%  changedClassTS object closed successfully"
 
-        for eachKey in addedClassHourDict.keys():
-            #copyTriple = (eachKey + " <http://er/c> " ).encode('utf-8', errors='ignore')  str(changedClassHourDict[eachKey])+ )
-            addedClassTS.write((eachKey + " <http://er/c> " ).encode('utf-8', errors='ignore'))
-            addedClassTS.write(str(addedClassHourDict[eachKey]))
-            addedClassTS.write(" . \n")
+        for eachKeyAdd in addedClassHourDict.keys():
+            addedClassTS.write((eachKeyAdd + " <http://er/c> " + str(addedClassHourDict[eachKeyAdd]) + " . \n"))
         addedClassTS.close()
-        print "%%%%%%%%%  addedlogFilePath object closed successfully"
 
-        for eachKey in deletedClassHourDict.keys():
-            #copyTriple = (eachKey + " <http://er/c> " ).encode('utf-8', errors='ignore')  str(changedClassHourDict[eachKey])+ )
-            deletedClassTS.write((eachKey + " <http://er/c> " ).encode('utf-8', errors='ignore'))
-            deletedClassTS.write(str(deletedClassHourDict[eachKey]))
-            deletedClassTS.write(" . \n")
+        for eachKeyDel in deletedClassHourDict.keys():
+            deletedClassTS.write((eachKeyDel + " <http://er/c> " + str(deletedClassHourDict[eachKeyDel]) + " . \n"))
         deletedClassTS.close()
-        print "%%%%%%%%%  deletedlogFilePath object closed successfully"
-
-        notFoundIRIFile.close()
-        print "%%%%%%%%%  notFoundIRIFile object closed successfully"
-
         retryFile.close()
-        print "%%%%%%%%%  retryFile object closed successfully"
-
-        logFile.close()
-        print "%%%%%%%%%  logFile object closed successfully"
 
         # Move a file by renaming it's path
         os.rename(filePath, filePathMoved)
         time.sleep(1)
     lock.release()
-    print "lock released on directory " + path
+    print ("lock released on directory " + path)

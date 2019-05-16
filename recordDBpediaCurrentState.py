@@ -41,6 +41,8 @@ def getCountOfTriples(conceptURI):
         for count in results["results"]["bindings"]:
             currentStateFO.write(conceptURI.strip() + " ----- " + str(datetime.datetime.now()) + " ----- " + str(count["countTriples"]["value"]) + "\n")
     except Exception as e:
+        print (e)
+        currentStateLogFO.write(conceptURI.strip() + " ----- exception occured in " + str(os.getpid()) +"\n")
         if conceptURI in retryTable:
             if retryTable[conceptURI] < 4:
                 retryTable[conceptURI] = retryTable[conceptURI] + 1
@@ -48,8 +50,6 @@ def getCountOfTriples(conceptURI):
         else:
             retryTable[conceptURI] = 1
             getCountOfTriples(conceptURI)
-        print (e)
-        currentStateLogFO.write(conceptURI.strip() + " ----- exception occured in " + str(os.getpid()) +"\n")
 
 allConceptFilePath = '../../DBpediaSnapshot/allConcepts.txt'
 if __name__ == '__main__':
