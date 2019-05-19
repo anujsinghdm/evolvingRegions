@@ -1,4 +1,5 @@
 from multiprocessing import Pool, TimeoutError
+import multiprocessing
 import time
 import os
 import getRdfTypeFromRemote
@@ -10,13 +11,16 @@ def get_immediate_subdirectories(dirPath):
     allFilePath = []
     count = 1;
     for subdir, dirs, files in os.walk(dirPath):
-        if count == 1 :
-            count = count + 1
-        else :
-            allFilePath.append(subdir)
+        if len(files) > 0:
+            for eachFile in files:
+                if ".nt" in eachFile:
+                    allFilePath.append(eachFile)
     return allFilePath
 
-path = '../../DBpediaChangeSet/01'
+day = "02"
+path = '../../DBpediaChangeSet/' + day
 if __name__ == '__main__':
-    pool = Pool(processes=24)              # start 24 worker processes
+    pool = Pool(multiprocessing.cpu_count())
     pool.map(getRdfTypeFromRemote.getClasses, get_immediate_subdirectories(path))
+    pool.close()
+    pool.join()
