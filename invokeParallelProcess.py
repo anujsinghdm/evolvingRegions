@@ -17,10 +17,10 @@ def get_immediate_subdirectories(dirPath):
                     allFilePath.append(eachFile)
     return allFilePath
 
-day = "02"
+day = "11"
 path = '../../DBpediaChangeSet/' + day
 if __name__ == '__main__':
-    pool = Pool(multiprocessing.cpu_count())
+    pool = Pool(1)
     pool.map(getRdfTypeFromRemote.getClasses, get_immediate_subdirectories(path))
     pool.close()
     pool.join()

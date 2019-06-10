@@ -7,14 +7,14 @@ def getAllAnchors( parentUrl ):
     return htmlParser
 
 #python 2.7 compatible code
-url = 'http://live.dbpedia.org/changesets/2019/03/'
+url = 'http://live.dbpedia.org/changesets/2015/06/'
 #making day URL
 for i, dayAnchor in enumerate(getAllAnchors(url)):
     dayUrl = url + dayAnchor.get('href')
     day = dayUrl.replace(url, '')
     #making hour URL
     for j, hrAnchor in enumerate(getAllAnchors(dayUrl)):
-        if not j == 0 and not i < 21:
+        if not j == 0 and i >= 12:
             hrUrl = dayUrl + hrAnchor.get('href')
             #making file URL
             for k, fileAnchor in enumerate(getAllAnchors(hrUrl)):
