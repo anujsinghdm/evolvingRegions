@@ -2,7 +2,7 @@ import glob, os
 import pprint
 import time
 from rdflib import Graph
-from SPARQLWrapper import SPARQLWrapper, JSON, POST, GET, TURTLE
+from SPARQLWrapper import Wrapper, SPARQLWrapper, JSON, POST, GET, TURTLE
 from rdflib.plugin import register, Serializer, Parser
 from rdflib import URIRef
 import pickle
@@ -11,6 +11,7 @@ import threading
 import invokeParallelProcess
 import re
 import gc
+Wrapper._returnFormatSetting = ['format']
 
 lock = threading.Lock()
 
@@ -44,6 +45,10 @@ def getClasses (path):
 
     retryResources = []
     changedClassHourDict = {}
+    changeLogDir = hourlyChangedClass.replace(hourlyChangedClass.split("/")[len(hourlyChangedClass.split("/")) - 1],"")
+    if not os.path.exists(changeLogDir):
+        os.makedirs(changeLogDir)
+    print (changeLogDir)
     print (hourlyChangedClass)
     if os.path.isfile(hourlyChangedClass):
         changedClassHourDict = instatitechangedClassHourDict(hourlyChangedClass)
@@ -65,7 +70,7 @@ def getClasses (path):
     file.parse(data=tempFile, format="nt")
     print(len(file))
     unique_sub = {}
-    sparqlEndpoint = SPARQLWrapper("http://192.168.178.39:7200/repositories/Repo01")
+    sparqlEndpoint = SPARQLWrapper("http://localhost:8000/v1/graphs/sparql")
 
     for sub,pre,obj in file:
         if sub in unique_sub:
@@ -73,36 +78,25 @@ def getClasses (path):
         else:
             unique_sub[sub] = 1
 
+    print (len(unique_sub))
+    # changeGraph = Graph()
+    # changeGraph.parse(data=open("./allChanges.nt", "r").read(), format="ttl")
+    # print ("Graph generated")
 
-    changeGraph = Graph()
-    changeGraph.parse(data=open("./allChanges.nt", "r").read(), format="nt")
-
-    for s in unique_sub:
+    for counter, s in enumerate(unique_sub):
         print (s)
+        print (counter)
         query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        SELECT ?extractedType
+        SELECT distinct ?extractedType
         WHERE {
-        graph <http://dbpedia/2015>
-        {
         <""" + s.strip() + """> rdf:type ?extractedType.
-        }
         }"""
-
-        query1 = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        SELECT ?type
-        WHERE {
-        <""" + s.strip() + """> rdf:type ?type.
-        }"""
-
-        resultFromChanges = changeGraph.query(query1)
 
         try:
-            #query in full data
-            sparqlEndpoint.setQuery(query)
             sparqlEndpoint.setMethod(GET)
             sparqlEndpoint.setReturnFormat(JSON)
+            sparqlEndpoint.setQuery(query)
             results = sparqlEndpoint.query().convert()
-
 
         except Exception as e:
             print ("retrying..." + str(e))
@@ -132,26 +126,12 @@ def getClasses (path):
         #updating hour dict
         for result in results["results"]["bindings"]:
             key = "<" + result["extractedType"]["value"] + ">"
-            if key == '''<http://exp.er.unknown>''':
-                if len(resultFromChanges.bindings) == 0:
-                    if key in changedClassHourDict:
-                        changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + unique_sub[s]
-                    else:
-                        changedClassHourDict[key] = unique_sub[s]
-                else:
-                    for key2 in resultFromChanges.bindings:
-                        key2 = "<" + str(key2["type"]) + ">"
-                        if key2 in changedClassHourDict:
-                            changedClassHourDict[key2] = int(str(changedClassHourDict[key2]).strip()) + unique_sub[s]
-                        else:
-                            changedClassHourDict[key2] = unique_sub[s]
+            if key in changedClassHourDict:
+                changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + unique_sub[s]
             else:
-                if key in changedClassHourDict:
-                    changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + unique_sub[s]
-                else:
-                    changedClassHourDict[key] = unique_sub[s]
-    filePathMoved = filePath.replace('DBpediaChangeSet', 'DBpediaChangeSetDone')
+                changedClassHourDict[key] = unique_sub[s]
 
+    filePathMoved = filePath.replace('DBpediaChangeSet', 'DBpediaChangeSetDone')
     retryFilePath = hourlyChangedClass.replace('.nt', 'retry.nt')
     retryFile = open(retryFilePath,"w+")
 
@@ -160,10 +140,13 @@ def getClasses (path):
 
     changedClassTS = open(hourlyChangedClass,"w+")
 
-    for eachKeyHr in changedClassHourDict.keys():
-        changedClassTS.write((eachKeyHr + " <http://er/c> " + str(changedClassHourDict[eachKeyHr]) + " . \n"))
-    changedClassTS.close()
-    retryFile.close()
+    try:
+        for eachKeyHr in changedClassHourDict.keys():
+            changedClassTS.write((eachKeyHr + " <http://er/c> " + str(changedClassHourDict[eachKeyHr]) + " . \n"))
+        changedClassTS.close()
+        retryFile.close()
+    except Exception as e:
+        print (str(e))
 
     # Move a file by renaming it's path
     os.rename(filePath, filePathMoved)

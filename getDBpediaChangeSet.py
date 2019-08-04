@@ -7,33 +7,36 @@ def getAllAnchors( parentUrl ):
     return htmlParser
 
 #python 2.7 compatible code
-url = 'http://live.dbpedia.org/changesets/2015/06/'
+url = 'http://downloads.dbpedia.org/live/changesets/2015/08/'
 #making day URL
 for i, dayAnchor in enumerate(getAllAnchors(url)):
     dayUrl = url + dayAnchor.get('href')
     day = dayUrl.replace(url, '')
+    print (day)
     #making hour URL
     for j, hrAnchor in enumerate(getAllAnchors(dayUrl)):
-        if not j == 0 and i >= 12:
+        if not j == 0 and i != 0 and int(day.replace("/","")) > 30:
             hrUrl = dayUrl + hrAnchor.get('href')
             #making file URL
             for k, fileAnchor in enumerate(getAllAnchors(hrUrl)):
                 fileName = fileAnchor.get('href')
                 if not k == 0  and 'clear' not in fileName and 'reinserted' not in fileName:
                     fileUrl = hrUrl + fileName
-                    hourlyFilename = ""
+                    hour = fileUrl.split("/")[len(fileUrl.split("/")) - 2]
                     if "added.nt" in fileName:
-                        hourlyFilename = hrUrl.split("/")[len(hrUrl.split("/")) - 2] + "added.nt"
+                        dailyFilename = hrUrl.split("/")[len(hrUrl.split("/")) - 3] + "added.nt"
                     if "removed.nt" in fileName:
-                        hourlyFilename = hrUrl.split("/")[len(hrUrl.split("/")) - 2] + "deleted.nt"
-
+                        dailyFilename = hrUrl.split("/")[len(hrUrl.split("/")) - 3] + "deleted.nt"
                     if ".nt" in fileUrl:
                         downloadedFilePath = '../../DBpediaChangeSet/' + day + fileName
+                        if not os.path.exists('../../DBpediaChangeSet/' + day):
+                            os.makedirs('../../DBpediaChangeSet/' + day)
                         urllib.urlretrieve (fileUrl, downloadedFilePath)
+
                         with gzip.open(downloadedFilePath, 'rb') as f_in:
-                            #extractedFilePath = downloadedFilePath.replace('.gz','')
-                            extractedFilePath = '../../DBpediaChangeSet/' + day + "/" + hourlyFilename
+                            extractedFilePath = ('../../DBpediaChangeSet/' + day + dailyFilename)
+                            extractedFilePath = extractedFilePath.replace(".gz","")
                             with open(extractedFilePath, 'ab') as f_out:
                                 shutil.copyfileobj(f_in, f_out)
                         os.remove(downloadedFilePath)
-                        print downloadedFilePath
+                        print (fileUrl)
