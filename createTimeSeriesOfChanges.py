@@ -34,6 +34,7 @@ for eachFile in allFiles:
         hour = int(filename.replace("deleted","")) + 1
 
     print ("=======================")
+    print (filename)
     print (day)
     print (hour)
     print ((int(day) - 1) * 24 + int(hour))
@@ -44,9 +45,9 @@ for eachFile in allFiles:
         allConcepts.add(concept)
         changeFrequency = eachChange.split("""<http://er/c>""")[1].split(".")[0].strip()
         triples = concept + """  <http://hasChanges> <http://change/""" + str(insatnceCount) + "> ."
-        #triples = triples + """\n<http://change/""" + str(insatnceCount) + "> <http://change/day> \"" + str(day) + "\" ."
-        triples = triples + """\n<http://change/""" + str(insatnceCount) + "> <http://change/hour> \"" + str(hour) + "\" ."
-        triples = triples + """\n<http://change/""" + str(insatnceCount) + "> <http://change/consecutiveHour> \"" + str((int(day) - 1) * 24 + int(hour) ) + "\" ."
+        triples = triples + """\n<http://change/""" + str(insatnceCount) + "> <http://change/day> \"" + str(day) + "\" ."
+        #triples = triples + """\n<http://change/""" + str(insatnceCount) + "> <http://change/hour> \"" + str(hour) + "\" ."
+        #triples = triples + """\n<http://change/""" + str(insatnceCount) + "> <http://change/consecutiveHour> \"" + str((int(day) - 1) * 24 + int(hour) ) + "\" ."
         triples = triples + """\n<http://change/""" + str(insatnceCount) + "> " + typeOfChanges + " \"" + str(changeFrequency) + "\" ."
         fwo.write(triples + "\n\n")
         insatnceCount = insatnceCount + 1

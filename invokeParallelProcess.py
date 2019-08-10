@@ -17,7 +17,7 @@ def get_immediate_subdirectories(dirPath):
                     allFilePath.append(eachFile)
     return allFilePath
 
-day = "27"
+day = "31"
 path = '../../DBpediaChangeSet/' + day
 if __name__ == '__main__':
     pool = Pool(1)

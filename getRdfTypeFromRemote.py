@@ -11,6 +11,7 @@ import threading
 import invokeParallelProcess
 import re
 import gc
+import json
 Wrapper._returnFormatSetting = ['format']
 
 lock = threading.Lock()
@@ -83,53 +84,72 @@ def getClasses (path):
     # changeGraph.parse(data=open("./allChanges.nt", "r").read(), format="ttl")
     # print ("Graph generated")
 
-    for counter, s in enumerate(unique_sub):
-        print (s)
-        print (counter)
-        query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        SELECT distinct ?extractedType
-        WHERE {
-        <""" + s.strip() + """> rdf:type ?extractedType.
-        }"""
-
-        try:
-            sparqlEndpoint.setMethod(GET)
-            sparqlEndpoint.setReturnFormat(JSON)
-            sparqlEndpoint.setQuery(query)
-            results = sparqlEndpoint.query().convert()
-
-        except Exception as e:
-            print ("retrying..." + str(e))
-            retryResources.append('<' + s.strip() + '>')
-            time.sleep(1)
-            continue
-
-        if len(results["results"]["bindings"]) == 0:
-            results = {
-                          "head": {
-                            "vars": [
-                              "extractedType"
-                            ]
-                          },
-                          "results": {
-                            "bindings": [
-                              {
-                                "extractedType": {
-                                  "type": "literal",
-                                  "value": "http://exp.er.unknown"
-                                }
-                              }
-                            ]
-                          }
-                        }
-
-        #updating hour dict
-        for result in results["results"]["bindings"]:
-            key = "<" + result["extractedType"]["value"] + ">"
-            if key in changedClassHourDict:
-                changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + unique_sub[s]
+    counter = 0
+    length = len(unique_sub)
+    subjectURIs = ""
+    projection = "select distinct "
+    mapping_dict = {}
+    for i, s in enumerate(unique_sub, start = 1):
+        #print (s)
+        counter = counter + 1
+        tempVar = """?temp_type_""" + str(counter)
+        var = """?type_""" + str(counter)
+        if counter < 150:
+            mapping_dict["""?type_""" + str(counter)] = s
+            if  i == length:
+                projection = projection + """ ?type_""" + str(counter)
+                subjectURIs = subjectURIs + """{ optional {<""" + s.strip() + """> rdf:type """ + tempVar +""".}
+                  bind(if (bound(""" + tempVar + """), """ + tempVar + """, "http://exp.er.unknown") as """ + var + """)} \n"""
             else:
-                changedClassHourDict[key] = unique_sub[s]
+                projection = projection + """ ?type_""" + str(counter)
+                subjectURIs = subjectURIs + """{ optional {<""" + s.strip() + """> rdf:type """ + tempVar +""".}
+                  bind(if (bound(""" + tempVar + """), """ + tempVar + """, "http://exp.er.unknown") as """ + var + """)} \n union \n"""
+
+        # if counter == 200:
+        #     projection = projection + """ ?type_""" + str(counter)
+        #     mapping_dict["""?type_""" + str(counter)] = s
+        #     subjectURIs = subjectURIs + """{ optional {<""" + s.strip() + """> rdf:type """ + tempVar +""".}
+        #       bind(if (bound(""" + tempVar + """), """ + tempVar + """, "http://exp.er.unknown") as """ + var + """)}  \n"""
+
+        if counter == 150 or i == length:
+            print (i)
+            if i == length:
+                ()
+            else:
+                projection = projection + """ ?type_""" + str(counter)
+                mapping_dict["""?type_""" + str(counter)] = s
+                subjectURIs = subjectURIs + """{ optional {<""" + s.strip() + """> rdf:type """ + tempVar +""".}
+                  bind(if (bound(""" + tempVar + """), """ + tempVar + """, "http://exp.er.unknown") as """ + var + """)}  \n"""
+
+
+            query = ("""PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            """ + projection + """
+            WHERE {
+            """ + subjectURIs +
+            """}""")
+            try:
+                sparqlEndpoint.setMethod(GET)
+                sparqlEndpoint.setReturnFormat(JSON)
+                sparqlEndpoint.setQuery(query)
+                results = sparqlEndpoint.query().convert()
+            except Exception as e:
+                print ("retrying...\n" + subjectURIs)
+                retryResources.append(subjectURIs)
+                time.sleep(1)
+                continue
+
+            counter = 0
+            subjectURIs = ""
+            projection = "select distinct "
+
+            for eachType in results["results"]["bindings"]:
+                #updating hour dict
+                key = "<" + str(eachType[list(eachType.keys())[0]]["value"])+ ">"
+                subjectCount = unique_sub[mapping_dict[("?" + list(eachType.keys())[0])]]
+                if key in changedClassHourDict:
+                    changedClassHourDict[key] = int(str(changedClassHourDict[key]).strip()) + subjectCount
+                else:
+                    changedClassHourDict[key] = subjectCount
 
     filePathMoved = filePath.replace('DBpediaChangeSet', 'DBpediaChangeSetDone')
     retryFilePath = hourlyChangedClass.replace('.nt', 'retry.nt')
@@ -148,7 +168,7 @@ def getClasses (path):
     except Exception as e:
         print (str(e))
 
-    # Move a file by renaming it's path
+    #Move a file by renaming it's path
     os.rename(filePath, filePathMoved)
     del file
     gc.collect()

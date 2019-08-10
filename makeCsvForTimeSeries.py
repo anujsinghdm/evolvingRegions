@@ -1,5 +1,6 @@
-from SPARQLWrapper import SPARQLWrapper, JSON, POST, GET, TURTLE
+from SPARQLWrapper import Wrapper, SPARQLWrapper, JSON, POST, GET, TURTLE
 from rdflib import Graph
+Wrapper._returnFormatSetting = ['format']
 
 queryFullDataset = """select distinct ?concept
 where
@@ -23,7 +24,7 @@ where
 """
 
 allUniqueConcepts = set()
-sparqlEndpoint = SPARQLWrapper("http://192.168.178.39:7200/repositories/Repo01")
+sparqlEndpoint = SPARQLWrapper("http://localhost:8000/v1/graphs/sparql")
 sparqlEndpoint.setMethod(GET)
 sparqlEndpoint.setReturnFormat(JSON)
 
@@ -48,35 +49,54 @@ csvFo = open("./allChangesCsv.csv","w+")
 allChangesGraph = Graph()
 allChangesGraph.parse(data=open("/Users/anuj/PhD/ConsolidateChanges/allChanges.nt","r").read(), format="nt")
 firstRow = "Concept"
+dayTotalCountDict = {}
+for eachCol in range(1, 35):
+	if eachCol < 10:
+		eachCol = "0" + str(eachCol)
 
-for eachCol in range(1, 408):
-    firstRow = firstRow + ","+ str(eachCol)
+	firstRow = (firstRow + ","+ str(eachCol))
+	queryToGetTotalCountOfDay = """
+		PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+		select (SUM(?intChangeFrequency) as ?sum)
+		where
+		{       ?changeInfo <http://change/day> \"""" + str(eachCol) + """\";
+		                    (<http://changeType/added> | <http://changeType/deleted>) ?changeFrequency.
+		         bind(xsd:integer(?changeFrequency) as ?intChangeFrequency)
+
+		}
+		"""
+	totalDayCount = allChangesGraph.query(queryToGetTotalCountOfDay)
+	dayTotalCountDict[str(eachCol)] = int(totalDayCount.bindings[0]["sum"])
+
+print (dayTotalCountDict)
 
 csvFo.write(firstRow + "\n")
 for eachConcept in allUniqueConcepts:
-    print (eachConcept)
-    eachRow = eachConcept
-    for eachCol in range(1, 408):
-        queryToGetFrequency = """
-        select ?changeFrequency
-        where
-        {
+	print (eachConcept)
+	eachRow = eachConcept
+	for eachCol in range(1, 35):
+		if eachCol < 10:
+			eachCol = "0" + str(eachCol)
+		queryToGetFrequency = """
+		select ?changeFrequency
+		where
+		{
+		        <""" + str(eachConcept) + """> <http://hasChanges> ?changeInfo.
+		        ?changeInfo <http://change/day> \"""" + str(eachCol) + """\";
+		                    (<http://changeType/added> | <http://changeType/deleted>) ?changeFrequency
 
-                <""" + str(eachConcept) + """> <http://hasChanges> ?changeInfo.
-                ?changeInfo <http://change/consecutiveHour> \"""" + str(eachCol) + """\";
-                            (<http://changeType/added> | <http://changeType/deleted>) ?changeFrequency
+		}
+	    """
 
-        }
-        """
-        try:
-            frequency = allChangesGraph.query(queryToGetFrequency)
-        except Exception as e:
-            print ("retrying..." + str(e))
-        sumAddDelFrequency = 0
-        if len(frequency.bindings) == 0:
-            eachRow = eachRow + ",0"
-        else:
-            for eachFrequency in frequency.bindings:
-                sumAddDelFrequency = sumAddDelFrequency + int(eachFrequency["changeFrequency"])
-            eachRow = eachRow + "," + str(sumAddDelFrequency)
-    csvFo.write(eachRow + "\n")
+		frequency = allChangesGraph.query(queryToGetFrequency)
+		sumAddDelFrequency = 0
+		if len(frequency.bindings) == 0:
+			eachRow = eachRow + ",0"
+		else:
+			for eachFrequency in frequency.bindings:
+				sumAddDelFrequency = sumAddDelFrequency + int(eachFrequency["changeFrequency"])
+			changePercent = sumAddDelFrequency / int(dayTotalCountDict[str(eachCol)])
+			eachRow = eachRow + "," + str(float("{0:.4f}".format(changePercent)))
+			print (str(float("{0:.4f}".format(changePercent))))
+
+	csvFo.write(eachRow + "\n")
